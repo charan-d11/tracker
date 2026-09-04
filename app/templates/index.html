@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shared Pot Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="manifest" href="/static/manifest.json">
+<meta name="theme-color" content="#2d6a4f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pot Tracker">
+<script>
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('SW registered'))
+                .catch(err => console.log('SW failed', err));
+        });
+    }
+</script>
+</head>
+<body>
+
+    <!-- Sidebar Overlay -->
+    <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3>💰 Add Money to Pot</h3>
+            <button class="close-btn" onclick="closeSidebar()">✕</button>
+        </div>
+        <div class="sidebar-body">
+            <label>Amount</label>
+            <input type="number" id="deposit-amount" placeholder="Enter amount" min="1"/>
+            <button onclick="depositMoney()">Add Money</button>
+            <p class="msg" id="deposit-msg"></p>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container">
+
+        <!-- Top Bar -->
+        <div class="topbar">
+            <button class="sidebar-toggle" onclick="openSidebar()">💰 Add Money</button>
+            <h1>🪣 Shared Pot</h1>
+        </div>
+
+        <!-- Balance Box -->
+        <!-- Balance Box -->
+    <div class="balance-box">
+        <p class="balance-label">Current Balance</p>
+        <h2 class="balance-amount" id="balance">₹ 0</h2>
+        <button class="reset-btn" onclick="resetBalance()">🔄 Reset Balance</button>
+    </div>
+        <!-- Add Purchase -->
+        <div class="card">
+            <h3>🛒 Log a Purchase</h3>
+            <input type="text" id="item-name" placeholder="Item name"/>
+            <input type="number" id="item-amount" placeholder="Amount spent" min="1"/>
+            <select id="bought-by">
+                <option value="">-- Who bought it? --</option>
+                <option value="Durga">Durga</option>
+                <option value="Srikant">Srikant</option>
+            </select>
+            <button onclick="addPurchase()">Add Purchase</button>
+            <p class="msg" id="purchase-msg"></p>
+        </div>
+
+        <!-- Purchase History -->
+        <div class="card">
+            <div class="history-header">
+                <h3>📋 Purchase History</h3>
+                <button class="clear-btn" onclick="clearHistory()">🗑 Clear History</button>
+            </div>
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th>Amount</th>
+                        <th>By</th>
+                        <th>Date</th>
+                    </tr>
+                </thead>
+                <tbody id="history-body">
+                    <tr><td colspan="4">No purchases yet</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        window.onload = () => {
+            fetchBalance();
+            fetchHistory();
+        }
+
+        // Sidebar
+        function openSidebar() {
+            document.getElementById('sidebar').classList.add('open');
+            document.getElementById('overlay').classList.add('show');
+        }
+
+        function closeSidebar() {
+            document.getElementById('sidebar').classList.remove('open');
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('deposit-msg').textContent = '';
+            document.getElementById('deposit-amount').value = '';
+        }
+
+        async function fetchBalance() {
+            const res = await fetch('/api/balance');
+            const data = await res.json();
+            document.getElementById('balance').textContent = `₹ ${data.balance}`;
+        }
+
+        async function depositMoney() {
+            const amount = parseFloat(document.getElementById('deposit-amount').value);
+            const msg = document.getElementById('deposit-msg');
+
+            if (!amount || amount <= 0) {
+                msg.textContent = "Enter a valid amount!";
+                msg.style.color = "red";
+                return;
+            }
+
+            const res = await fetch('/api/add_money', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                msg.textContent = "✅ Money added!";
+                msg.style.color = "green";
+                document.getElementById('deposit-amount').value = '';
+                fetchBalance();
+            } else {
+                msg.textContent = "❌ " + data.error;
+                msg.style.color = "red";
+            }
+        }
+
+        async function addPurchase() {
+            const item = document.getElementById('item-name').value.trim();
+            const amount = parseFloat(document.getElementById('item-amount').value);
+            const bought_by = document.getElementById('bought-by').value;
+            const msg = document.getElementById('purchase-msg');
+
+            if (!item || !amount || !bought_by) {
+                msg.textContent = "All fields are required!";
+                msg.style.color = "red";
+                return;
+            }
+
+            const res = await fetch('/api/add_purchase', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ item, amount, bought_by })
+            });
+
+            const data = await res.json();
+            if (res.ok) {
+                msg.textContent = "✅ Purchase logged!";
+                msg.style.color = "green";
+                document.getElementById('item-name').value = '';
+                document.getElementById('item-amount').value = '';
+                document.getElementById('bought-by').value = '';
+                fetchBalance();
+                fetchHistory();
+            } else {
+                msg.textContent = "❌ " + data.error;
+                msg.style.color = "red";
+            }
+        }
+
+        async function fetchHistory() {
+            const res = await fetch('/api/purchases');
+            const data = await res.json();
+            const tbody = document.getElementById('history-body');
+
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4">No purchases yet</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = data.map(p => `
+                <tr>
+                    <td>${p.item}</td>
+                    <td>₹ ${p.amount}</td>
+                    <td>${p.bought_by}</td>
+                    <td>${new Date(p.date).toLocaleDateString()}</td>
+                </tr>
+            `).join('');
+        }
+
+        async function clearHistory() {
+            if (!confirm("Are you sure you want to clear all history?")) return;
+
+            const res = await fetch('/api/clear_history', { method: 'DELETE' });
+            if (res.ok) {
+                fetchHistory();
+            }
+        }
+        async function resetBalance() {
+        if (!confirm("Are you sure you want to reset the balance to ₹0?")) return;
+
+        const res = await fetch('/api/reset_balance', { method: 'PUT' });
+        if (res.ok) {
+            fetchBalance();
+            }
+        }
+    </script>
+
+</body>
+</html>
