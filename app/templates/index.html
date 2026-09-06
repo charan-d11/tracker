@@ -81,10 +81,11 @@
                         <th>Amount</th>
                         <th>By</th>
                         <th>Date</th>
+                        <th>Time</th>
                     </tr>
                 </thead>
                 <tbody id="history-body">
-                    <tr><td colspan="4">No purchases yet</td></tr>
+                    <tr><td colspan="5">No purchases yet</td></tr>
                 </tbody>
             </table>
         </div>
@@ -193,6 +194,7 @@
                     <td>₹ ${p.amount}</td>
                     <td>${p.bought_by}</td>
                     <td>${new Date(p.date).toLocaleDateString()}</td>
+                    <td>${new Date(p.date).toLocaleTimeString()}<td>
                 </tr>
             `).join('');
         }
