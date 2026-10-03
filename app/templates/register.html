@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register - Shared Pot Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="theme-color" content="#2d6a4f">
+
+     <link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<meta name="theme-color" content="#2d6a4f">
+<script src="/static/pwa.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>🪣 Shared Pot</h1>
+        </div>
+
+        <div class="card">
+            <h3>📝 Create Account</h3>
+            <form method="POST" action="{{ url_for('register') }}">
+                <input type="text" name="username" placeholder="Choose a username (3-30 characters)" required minlength="3" maxlength="30" autofocus autocomplete="username"/>
+                <input type="password" name="password" placeholder="Password (at least 6 characters)" required minlength="6" autocomplete="new-password"/>
+                <button type="submit">Create Account</button>
+            </form>
+            {% if error %}
+            <p class="msg" style="color:red;">❌ {{ error }}</p>
+            {% endif %}
+            <p class="msg">
+                Already have an account? <a href="{{ url_for('login') }}" style="color:#2d6a4f;font-weight:600;">Login</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

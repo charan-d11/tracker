@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Shared Pot Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="theme-color" content="#2d6a4f">
+
+     <link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+<meta name="theme-color" content="#2d6a4f">
+<script src="/static/pwa.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <h1>🪣 Shared Pot</h1>
+        </div>
+
+        <div class="card">
+            <h3>👥 Who shares this pot?</h3>
+
+            <label for="count" style="display:block;font-size:0.85rem;color:#666;margin-bottom:6px;">
+                How many people (including you)?
+            </label>
+            <input type="number" id="count" min="1" max="20" value="2"/>
+
+            <form method="POST" action="{{ url_for('setup') }}">
+                <div id="names-box"></div>
+                <button type="submit">Save &amp; Continue</button>
+            </form>
+
+            {% if error %}
+            <p class="msg" style="color:red;">❌ {{ error }}</p>
+            {% endif %}
+
+            {% if existing %}
+            <p class="msg"><a href="{{ url_for('index') }}" style="color:#2d6a4f;font-weight:600;">← Back to tracker</a></p>
+            {% endif %}
+            <p class="msg"><a href="{{ url_for('logout') }}" style="color:#666;">Logout</a></p>
+        </div>
+    </div>
+
+    <script>
+        const existing = {{ existing|tojson }};
+        const countInput = document.getElementById('count');
+        const box = document.getElementById('names-box');
+
+        function renderFields() {
+            let n = parseInt(countInput.value, 10);
+            if (isNaN(n) || n < 1) n = 1;
+            if (n > 20) n = 20;
+
+            // keep what has already been typed
+            const current = Array.from(box.querySelectorAll('input')).map(i => i.value);
+
+            box.innerHTML = '';
+            for (let i = 0; i < n; i++) {
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.name = 'names';
+                input.placeholder = 'Person ' + (i + 1) + ' name';
+                input.maxLength = 30;
+                input.required = true;
+                input.value = current[i] !== undefined ? current[i] : (existing[i] || '');
+                box.appendChild(input);
+            }
+        }
+
+        if (existing.length > 0) countInput.value = existing.length;
+        countInput.addEventListener('input', renderFields);
+        renderFields();
+    </script>
+</body>
+</html>

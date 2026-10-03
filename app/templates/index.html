@@ -6,20 +6,26 @@
     <title>Shared Pot Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#2d6a4f">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Pot Tracker">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                    .then(reg => console.log('SW registered'))
+                    .catch(err => console.log('SW failed', err));
+            });
+        }
+    </script>
+     <link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 <meta name="theme-color" content="#2d6a4f">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Pot Tracker">
-<script>
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/static/sw.js')
-                .then(reg => console.log('SW registered'))
-                .catch(err => console.log('SW failed', err));
-        });
-    }
-</script>
+<script src="/static/pwa.js" defer></script>
 </head>
 <body>
+
+   
 
     <!-- Sidebar Overlay -->
     <div class="overlay" id="overlay" onclick="closeSidebar()"></div>
@@ -45,24 +51,26 @@
         <div class="topbar">
             <button class="sidebar-toggle" onclick="openSidebar()">💰 Add Money</button>
             <h1>🪣 Shared Pot</h1>
+            <div style="margin-left:auto; display:flex; gap:12px; font-size:0.85rem;">
+                <a href="{{ url_for('setup') }}" style="color:#2d6a4f; text-decoration:none;">👥 People</a>
+                <a href="{{ url_for('logout') }}" style="color:#e63946; text-decoration:none;">Logout</a>
+            </div>
         </div>
 
         <!-- Balance Box -->
-        <!-- Balance Box -->
-    <div class="balance-box">
-        <p class="balance-label">Current Balance</p>
-        <h2 class="balance-amount" id="balance">₹ 0</h2>
-        <button class="reset-btn" onclick="resetBalance()">🔄 Reset Balance</button>
-    </div>
+        <div class="balance-box">
+            <p class="balance-label">Current Balance</p>
+            <h2 class="balance-amount" id="balance">₹ 0</h2>
+            <button class="reset-btn" onclick="resetBalance()">🔄 Reset Balance</button>
+        </div>
+
         <!-- Add Purchase -->
         <div class="card">
             <h3>🛒 Log a Purchase</h3>
-            <input type="text" id="item-name" placeholder="Item name"/>
+            <input type="text" id="item-name" placeholder="Item name" maxlength="100"/>
             <input type="number" id="item-amount" placeholder="Amount spent" min="1"/>
             <select id="bought-by">
                 <option value="">-- Who bought it? --</option>
-                <option value="Durga">Durga</option>
-                <option value="Srikant">Srikant</option>
             </select>
             <button onclick="addPurchase()">Add Purchase</button>
             <p class="msg" id="purchase-msg"></p>
@@ -94,11 +102,36 @@
 
     <script>
         window.onload = () => {
+            fetchMembers();
             fetchBalance();
             fetchHistory();
+        };
+
+        // ---------- Helpers ----------
+
+        // Wrapper around fetch: if the session expired, go to the login page
+        async function api(url, options) {
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                window.location.href = '/login';
+                throw new Error('Not logged in');
+            }
+            return res;
         }
 
-        // Sidebar
+        // Escape text so names typed by users can never run as HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = String(text);
+            return div.innerHTML;
+        }
+
+        function formatMoney(value) {
+            return Number(value).toLocaleString('en-IN', { maximumFractionDigits: 2 });
+        }
+
+        // ---------- Sidebar ----------
+
         function openSidebar() {
             document.getElementById('sidebar').classList.add('open');
             document.getElementById('overlay').classList.add('show');
@@ -111,10 +144,29 @@
             document.getElementById('deposit-amount').value = '';
         }
 
+        // ---------- Members ----------
+
+        async function fetchMembers() {
+            const res = await api('/api/members');
+            const members = await res.json();
+            const select = document.getElementById('bought-by');
+
+            // keep the first "-- Who bought it? --" option, rebuild the rest
+            select.length = 1;
+            members.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+        }
+
+        // ---------- Balance ----------
+
         async function fetchBalance() {
-            const res = await fetch('/api/balance');
+            const res = await api('/api/balance');
             const data = await res.json();
-            document.getElementById('balance').textContent = `₹ ${data.balance}`;
+            document.getElementById('balance').textContent = `₹ ${formatMoney(data.balance)}`;
         }
 
         async function depositMoney() {
@@ -127,7 +179,7 @@
                 return;
             }
 
-            const res = await fetch('/api/add_money', {
+            const res = await api('/api/add_money', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ amount })
@@ -145,6 +197,17 @@
             }
         }
 
+        async function resetBalance() {
+            if (!confirm("Are you sure you want to reset the balance to ₹0?")) return;
+
+            const res = await api('/api/reset_balance', { method: 'PUT' });
+            if (res.ok) {
+                fetchBalance();
+            }
+        }
+
+        // ---------- Purchases ----------
+
         async function addPurchase() {
             const item = document.getElementById('item-name').value.trim();
             const amount = parseFloat(document.getElementById('item-amount').value);
@@ -157,7 +220,7 @@
                 return;
             }
 
-            const res = await fetch('/api/add_purchase', {
+            const res = await api('/api/add_purchase', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ item, amount, bought_by })
@@ -179,40 +242,34 @@
         }
 
         async function fetchHistory() {
-            const res = await fetch('/api/purchases');
+            const res = await api('/api/purchases');
             const data = await res.json();
             const tbody = document.getElementById('history-body');
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4">No purchases yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5">No purchases yet</td></tr>';
                 return;
             }
 
-            tbody.innerHTML = data.map(p => `
+            tbody.innerHTML = data.map(p => {
+                const d = new Date(p.date);
+                return `
                 <tr>
-                    <td>${p.item}</td>
-                    <td>₹ ${p.amount}</td>
-                    <td>${p.bought_by}</td>
-                    <td>${new Date(p.date).toLocaleDateString()}</td>
-                    <td>${new Date(p.date).toLocaleTimeString()}<td>
-                </tr>
-            `).join('');
+                    <td>${escapeHtml(p.item)}</td>
+                    <td>₹ ${formatMoney(p.amount)}</td>
+                    <td>${escapeHtml(p.bought_by)}</td>
+                    <td>${d.toLocaleDateString()}</td>
+                    <td>${d.toLocaleTimeString()}</td>
+                </tr>`;
+            }).join('');
         }
 
         async function clearHistory() {
             if (!confirm("Are you sure you want to clear all history?")) return;
 
-            const res = await fetch('/api/clear_history', { method: 'DELETE' });
+            const res = await api('/api/clear_history', { method: 'DELETE' });
             if (res.ok) {
                 fetchHistory();
-            }
-        }
-        async function resetBalance() {
-        if (!confirm("Are you sure you want to reset the balance to ₹0?")) return;
-
-        const res = await fetch('/api/reset_balance', { method: 'PUT' });
-        if (res.ok) {
-            fetchBalance();
             }
         }
     </script>
